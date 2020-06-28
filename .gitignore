@@ -1,0 +1,7 @@
+packrat/lib*/
+packrat/src/
+.Rproj.user
+.Rhistory
+covid.Rproj
+rsconnect/
+www/about.html
