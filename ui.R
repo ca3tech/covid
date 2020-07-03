@@ -36,7 +36,8 @@ dashboardPage(
     tags$meta(
       property="og:image:alt",
       content="Dashboard Preview"
-    )
+    ),
+    tags$script(src="covid.js")
   ),
   header = dashboardHeader(title = "US COVID19 Dashboard",
     dropdownMenuOutput("errors")

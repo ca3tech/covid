@@ -8,7 +8,8 @@ function(input, output, session) {
     geojson = NULL,
     maprender = FALSE,
     selftrids = c(),
-    notifications = list()
+    notifications = list(),
+    urlQueryParams = list()
   )
   
   covid_confirmed <- reactive({
@@ -51,7 +52,6 @@ function(input, output, session) {
   observeEvent(input$active_days, {
     df <- covid_confirmed()
     mindate <- max(df$date) - input$active_days
-    # message("Filtering covid data for date >= ",mindate)
     rvals$dtfcovconfdf <<- df[df$date >= mindate,]
   })
   
@@ -202,20 +202,24 @@ function(input, output, session) {
     }
   })
   
-  observeEvent(input$map_geojson_click, {
-    lid <- input$map_geojson_click$featureId
-    # message("Feature with feature id ",lid," clicked")
-    mlid <- getCountyMarkerId(lid)
+  updateCountyMarker <- function(ftrid) {
+    mlid <- getCountyMarkerId(ftrid)
     sfids <- rvals$selftrids
-    if(lid %in% sfids) {
-      sfids <- sfids[sfids != lid]
+    if(ftrid %in% sfids) {
+      sfids <- sfids[sfids != ftrid]
       leafletProxy("map") %>%
         removeMarker(mlid)
     } else {
-      sfids <- c(sfids, lid)
-      addCountyMarker(lid, geo = county_geo(), covcosumdf = rvals$covcosumdf)
+      sfids <- c(sfids, ftrid)
+      addCountyMarker(ftrid, geo = county_geo(), covcosumdf = rvals$covcosumdf)
     }
     rvals$selftrids <<- sfids
+  }
+  
+  observeEvent(input$map_geojson_click, {
+    lid <- input$map_geojson_click$featureId
+    # message("Feature with feature id ",lid," clicked")
+    updateCountyMarker(lid)
   })
   
   observeEvent(input$map_marker_click, {
@@ -275,6 +279,54 @@ function(input, output, session) {
       tbl <- tagAppendChild(tbl, tbod)
     }
     tbl
+  })
+  
+  # Add GET parameters for bookmarking
+  observeEvent(rvals$urlQueryParams, {
+    qstr <- paste(vapply(names(rvals$urlQueryParams), function(key) {
+      paste(key, rvals$urlQueryParams[[key]], sep = "=")
+    }, "string"), collapse = "&")
+    updateQueryString(paste0("?",qstr), session = session)
+  })
+  
+  observeEvent(input$active_days, {
+    rvals$urlQueryParams[["active_days"]] <<- input$active_days
+  })
+  
+  observeEvent(input$zipcode, {
+    val <- input$zipcode
+    if(val == "") {
+      val <- NULL
+    }
+    rvals$urlQueryParams[["zipcode"]] <<- val
+  })
+  
+  observe({
+    val <- NULL
+    if(length(rvals$selftrids) > 0) {
+      val <- paste(rvals$selftrids, collapse = ",")
+    }
+    isolate({
+      rvals$urlQueryParams[["feature_ids"]] <<- val
+    })
+  })
+  
+  # Handle GET parameters
+  # These inputs are set in covid.js
+  restoreMarkers <- function(ftrcsv) {
+    lapply(as.character(unlist(strsplit(ftrcsv, ",", fixed = TRUE))), updateCountyMarker)
+  }
+  
+  observeEvent(input$qfeature_ids, {
+    restoreMarkers(input$qfeature_ids)
+  })
+  
+  observeEvent(input$qzipcode, {
+    updateTextInput(session, "zipcode", value = input$qzipcode)
+  })
+  
+  observeEvent(input$qactive_days, {
+    updateSliderInput(session, "active_days", value = as.integer(input$qactive_days))
   })
   
 }
