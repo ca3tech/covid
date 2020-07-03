@@ -1,15 +1,53 @@
 
 dashboardPage(
-  dashboardHeader(title = "US COVID19 Dashboard",
+  tags$head(
+    tags$meta(
+      property="og:site_name",
+      content="COVID19 Dashboard"
+    ),
+    tags$meta(
+      property="og:title",
+      content="COVID19 Dashboard"
+    ),
+    tags$meta(
+      property="og:description",
+      content="Review COVID19 case data and you're chances of exposure"
+    ),
+    tags$meta(
+      property="og:image",
+      content="https://raw.githubusercontent.com/ca3tech/covid/master/www/preview.jpg"
+    ),
+    tags$meta(
+      property="og:image:secure_url",
+      content="https://raw.githubusercontent.com/ca3tech/covid/master/www/preview.jpg"
+    ),
+    tags$meta(
+      property="og:image:type",
+      content="image/jpeg"
+    ),
+    tags$meta(
+      property="og:image:width",
+      content="295"
+    ),
+    tags$meta(
+      property="og:image:height",
+      content="230"
+    ),
+    tags$meta(
+      property="og:image:alt",
+      content="Dashboard Preview"
+    )
+  ),
+  header = dashboardHeader(title = "US COVID19 Dashboard",
     dropdownMenuOutput("errors")
   ),
-  dashboardSidebar(
+  sidebar = dashboardSidebar(
     sidebarMenu(id = "tabs",
       menuItem("Dashboard", tabName = "dashboard", icon = icon("chart-line"), selected = TRUE),
       menuItem("About", tabName = "about", icon = icon("question-circle"))
     )
   ),
-  dashboardBody(
+  body = dashboardBody(
     add_busy_spinner(spin = "fading-circle", timeout = 1000, position = "full-page"),
     tabItems(
       tabItem("dashboard",
