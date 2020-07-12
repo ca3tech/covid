@@ -104,8 +104,8 @@ dashboardPage(
           mainPanel(
             width = 4,
             style = 'height: 90vh; overflow-y: auto;',
-            fluidRow(box(plotlyOutput("dash_plots", height = "600px"), width = 12)),
             fluidRow(box(uiOutput("stats_data"), width = 12)),
+            fluidRow(box(plotlyOutput("dash_plots", height = "1000px"), width = 12)),
             fluidRow(box(uiOutput("co_selected"), width = 12))
           )
         )

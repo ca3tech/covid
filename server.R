@@ -155,9 +155,11 @@ function(input, output, session) {
   output$stats_data <- renderUI({
     titles <- c(
       "Active Case Estimate" = 'Sum of "New Cases"',
+      "Death Rate" = 'Most recent "Confirmed Deaths" divided by "Confirmed Cases"',
       "Probability of Exposure" = "Likelihood of being exposed when encountering a person",
       "N50" = "Number of people above which more likely than not been exposed",
-      "New Case Trend" = 'Trend of daily "New Cases"; positive (increasing), negative (decreasing)'
+      "New Case Trend" = 'Trend of daily "New Cases"; positive (increasing), negative (decreasing)',
+      "New Death Trend" = 'Trend of daily "New Deaths"; positive (increasing), negative (decreasing)'
     )
     sl <- getStatsList()
     tipify(
@@ -175,7 +177,7 @@ function(input, output, session) {
       ),
       title = "Summary given <b><i>Active Days Assumption</i></b> and selected counties",
       trigger = "hover",
-      placement = "top"
+      placement = "bottom"
     )
   })
   
@@ -188,22 +190,28 @@ function(input, output, session) {
   output$dash_plots <- renderPlotly({
     ccdf <- getCaseData()
     if(! is.null(ccdf) && nrow(ccdf) > 0) {
+      inc <- 1 / 8
       withProgress({
         setProgress(message = "Building confirmed cases plot")
-        # message("Building confirmed cases plot for case data with dim (",paste(dim(ccdf), collapse=","),")")
         plots <- list(confirmed_cases_plot(ccdf))
-        incProgress(0.2, message = "Building new cases plot")
-        # message("Building new cases plot for case data with dim (",paste(dim(ccdf), collapse=","),")")
+        incProgress(inc, message = "Building new cases plot")
         plots[[length(plots)+1]] <- new_cases_plot(ccdf)
-        incProgress(0.2, message = "Retrieving stats")
+        
+        setProgress(message = "Building confirmed deaths plot")
+        plots[[length(plots)+1]] <- confirmed_deaths_plot(ccdf)
+        incProgress(inc, message = "Building new deaths plot")
+        plots[[length(plots)+1]] <- new_deaths_plot(ccdf)
+        incProgress(inc, message = "Building death rate plot")
+        plots[[length(plots)+1]] <- death_rate_plot(ccdf)
+        
+        incProgress(inc, message = "Retrieving stats")
         stdf <- getStatsData()
         if(! is.null(stdf)) {
-          incProgress(0.2, message = "Building exposure plot")
-          # message("Building exposure plot for stats data with dim (",paste(dim(stdf), collapse=","),")")
+          incProgress(inc, message = "Building exposure plot")
           plots[[length(plots)+1]] <- exposure_prob_plot(stdf)
         }
-        incProgress(0.2, message = "Building composite plot")
-        subplot(plots, nrows = 3, margin = c(0, 0, 0.05, 0.08), titleX = TRUE, titleY = TRUE)
+        incProgress(inc, message = "Building composite plot")
+        subplot(plots, nrows = 6, margin = c(0, 0, 0.02, 0.05), titleX = TRUE, titleY = TRUE)
       }, message = "Building plots")
     }
   })

@@ -201,7 +201,7 @@ calculate_active_case_est <- function(dtgdf, window=14) {
   }, 1)
 }
 
-add_active_case_est <- function(dtgdf, window=21) {
+add_active_case_est <- function(dtgdf, window=14) {
   dtgdf$active_case_est <- calculate_active_case_est(dtgdf, window)
   dtgdf
 }
@@ -213,11 +213,15 @@ compute_date_rollup <- function(casedf) {
     dplyr::summarise(df, date=date[1],
                      confirmed_cases=sum(confirmed_cases, na.rm = TRUE),
                      new_cases=sum(new_cases, na.rm = TRUE),
+                     confirmed_deaths=sum(confirmed_deaths, na.rm = TRUE),
+                     new_deaths=sum(new_deaths, na.rm = TRUE),
                      active_case_est=sum(active_case_est, na.rm = TRUE))
   } else {
     dplyr::summarise(df, date=date[1],
                      confirmed_cases=sum(confirmed_cases, na.rm = TRUE),
-                     new_cases=sum(new_cases, na.rm = TRUE))
+                     new_cases=sum(new_cases, na.rm = TRUE),
+                     confirmed_deaths=sum(confirmed_deaths, na.rm = TRUE),
+                     new_deaths=sum(new_deaths, na.rm = TRUE))
   }
 }
 
@@ -277,13 +281,24 @@ compute_stats <- function(casedf, popdf) {
   # in order for the probability of being exposed is greater
   # than the probability of not being exposed
   n50 <- ceiling(log(0.5, p_not_infected))
+  # Calculate the death rate
+  # I sorted summary dataframe based on descending date so
+  # the first row should contain the most recent data. Therefore,
+  # I can calculate the death rate from the last row
+  # confirmed death and cases
+  dthrt <- dsumdf$confirmed_deaths[1] / dsumdf$confirmed_cases[1]
+  # Calculate the trend (slope) of the new deaths linear model
+  ndlm <- stats::lm(new_deaths ~ date_num, dsumdf)
+  ndtrend <- coef(summary(ndlm))[2]
   data.frame(
     Active_Case_Estimate = cases,
     Active_Case_Estimate_Days = ndays,
+    Death_Rate = round(dthrt, digits = 4),
     Population = pop,
     Probability_of_Exposure = round(p_infected, digits=4),
     N50 = n50,
-    New_Case_Trend = round(nctrend, digits=2)
+    New_Case_Trend = round(nctrend, digits=2),
+    New_Death_Trend = round(ndtrend, digits=2)
   )
 }
 
@@ -304,6 +319,38 @@ new_cases_plot <- function(casedf) {
     layout(plot_bgcolor = "#888", showlegend = FALSE,
            xaxis = list(title = "Date", tickangle = -45),
            yaxis = list(title = "New Cases")
+    )
+}
+
+confirmed_deaths_plot <- function(casedf) {
+  csumdf <- compute_date_rollup(casedf)
+  plot_ly(csumdf, x = ~date, y = ~confirmed_deaths, type = "scatter", mode = "lines", color = I("blue"), hoverinfo = "y") %>%
+    layout(plot_bgcolor = "#888",
+           xaxis = list(title = "Date", tickangle = -45),
+           yaxis = list(title = "Confirmed Deaths")
+    )
+}
+
+new_deaths_plot <- function(casedf) {
+  csumdf <- compute_date_rollup(casedf)
+  fit <- stats::lm(new_deaths ~ date, data = csumdf)
+  plot_ly(csumdf, x = ~date, y = ~new_deaths, type = "scatter", mode = "lines", color = I("blue"), hoverinfo = "y") %>%
+    add_lines(x = ~date, y = fitted(fit), color = I("yellow")) %>%
+    layout(plot_bgcolor = "#888", showlegend = FALSE,
+           xaxis = list(title = "Date", tickangle = -45),
+           yaxis = list(title = "New Deaths")
+    )
+}
+
+death_rate_plot <- function(casedf) {
+  csumdf <- compute_date_rollup(casedf)
+  csumdf$death_rate <- 0
+  sel <- csumdf$confirmed_cases > 0
+  csumdf$death_rate[sel] <- round(csumdf$confirmed_deaths[sel] / csumdf$confirmed_cases[sel], 4)
+  plot_ly(csumdf, x = ~date, y = ~death_rate, type = "scatter", mode = "lines", color = I("blue"), hoverinfo = "y") %>%
+    layout(plot_bgcolor = "#888",
+           xaxis = list(title = "Date", tickangle = -45),
+           yaxis = list(title = "Death Rate")
     )
 }
 
@@ -347,7 +394,8 @@ county_fips_geo <- function() {
 compute_county_rollup <- function(casedf) {
   dplyr::arrange(casedf, state, dplyr::desc(date)) %>%
     dplyr::group_by(state, state_fips, county_name, county_fips) %>%
-    dplyr::summarise(confirmed_cases=confirmed_cases[1], new_cases=sum(new_cases, na.rm = TRUE))
+    dplyr::summarise(confirmed_cases=confirmed_cases[1], new_cases=sum(new_cases, na.rm = TRUE),
+                     confirmed_deaths=confirmed_deaths[1], new_deaths=sum(new_deaths, na.rm = TRUE))
 }
 
 filter_update_geo_features <- function(cfgeo, casedf=NULL, csumdf=NULL) {
