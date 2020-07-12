@@ -112,7 +112,7 @@ covid_county_population <- function(progress=NULL) {
     dplyr::select(-population.x, -population.y)
 }
 
-calculate_active_case_est <- function(dtgdf, window=21) {
+calculate_active_case_est <- function(dtgdf, window=14) {
   dtgdf <- dtgdf[order(dtgdf$date),]
   vapply(1:nrow(dtgdf), function(i) {
     si <- max(1, i - window)
@@ -350,27 +350,35 @@ get_map <- function(cfgeo=NULL, casedf=NULL, csumdf=NULL, cfgeo.update=FALSE, pr
     addGeoJSON(cfgeo)
 }
 
-.get_point_axis <- function(l, i) {
-  sl <- l
-  if(length(l) == 1) {
-    sl <- l[[1]]
-  }
-  vapply(sl, function(p) p[i], 1.0)
-}
-get_lon_lat_center <- function(feature) {
-  lons <- unlist(lapply(feature$geometry$coordinates, function(l) .get_point_axis(l, 1)))
-  lats <- unlist(lapply(feature$geometry$coordinates, function(l) .get_point_axis(l, 2)))
-  minlat <- min(lats, na.rm = TRUE)
-  maxlat <- max(lats, na.rm = TRUE)
-  dy <- (maxlat - minlat) / 2
-  minlon <- min(lons, na.rm = TRUE)
-  maxlon <- max(lons, na.rm = TRUE)
-  dx <- (maxlon - minlon) / 2
-  c(minlon + dx, minlat + dy)
-}
-
 data(zipcode)
 get_zipcode_lon_lat <- function(zip_codes) {
   dplyr::rename(zipcode[zipcode$zip %in% zip_codes, c("zip", "longitude", "latitude")],
                 zipcode=zip, lon=longitude, lat=latitude)
+}
+
+.pt_lst_to_df <- function(ptlist) {
+  plyr::ldply(ptlist, function(pt) data.frame(lon = pt[1], lat = pt[2]))
+}
+
+.geo_coord_to_points <- function(coords) {
+  if(length(coords) == 1) {
+    .pt_lst_to_df(coords[[1]])
+  } else {
+    lapply(coords, .geo_coord_to_points)
+  }
+}
+
+get_lon_lat_center <- function(feature) {
+  pts <- .geo_coord_to_points(feature$geometry$coordinates)
+  if(is.data.frame(pts)) {
+    as.numeric(geosphere::centroid(pts))
+  } else {
+    # There is more than one region
+    # Find the region with the greatest area
+    areas <- vapply(pts, geosphere::areaPolygon, 1.0)
+    armax <- max(areas)
+    imax <- which(vapply(areas, function(a) a == armax, TRUE))
+    # Return the centroid of the largest region
+    as.numeric(geosphere::centroid(pts[[imax[1]]]))
+  }
 }

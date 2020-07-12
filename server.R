@@ -9,14 +9,20 @@ function(input, output, session) {
     maprender = FALSE,
     selftrids = c(),
     notifications = list(),
-    urlQueryParams = list()
+    urlQueryParams = list(),
+    srtcovconfdf = NULL,
+    navi = 0,
+    nav_prev_vis = TRUE,
+    nav_next_vis = TRUE
   )
   
   covid_confirmed <- reactive({
     if(is.null(rvals$covconfdf)) {
       progress <- shiny::Progress$new()
       on.exit(progress$close())
-      rvals$covconfdf <<- covid_confirmed_usa(progress)
+      df <- covid_confirmed_usa(progress)
+      # We don't do anything with the state level data so remove it
+      rvals$covconfdf <<- df[df$county_fips != 0,]
       isolate({
         progress$set(0, "Computing county summary statistics")
         rvals$covcosumdf <<- compute_county_rollup(rvals$covconfdf)
@@ -54,6 +60,52 @@ function(input, output, session) {
     mindate <- max(df$date) - input$active_days
     rvals$dtfcovconfdf <<- df[df$date >= mindate,]
   })
+  
+  # Enable navigating by active case
+  observeEvent(rvals$covcosumdf, {
+    rvals$srtcovconfdf <<- dplyr::arrange(rvals$covcosumdf, dplyr::desc(new_cases))
+    rvals$srtcovconfdf$active_rank <- 1:nrow(rvals$srtcovconfdf)
+    rvals$navi <<- 0
+  })
+  
+  observeEvent(input$nav_next, {
+    if(rvals$navi < nrow(rvals$srtcovconfdf)) {
+      rvals$navi <<- rvals$navi + 1
+    }
+  })
+  
+  observeEvent(input$nav_prev, {
+    if(rvals$navi > 1) {
+      rvals$navi <<- rvals$navi - 1
+    }
+  })
+  
+  observeEvent(rvals$navi, {
+    if(rvals$navi > 0) {
+      clear_markers(rvals$selftrids)
+      updateCountyMarker(rvals$srtcovconfdf$county_fips[rvals$navi], TRUE)
+    }
+  })
+  
+  observeEvent(rvals$navi, {
+    if((rvals$navi < 2 && rvals$nav_prev_vis)
+       || (rvals$navi > 1 && ! rvals$nav_prev_vis)) {
+      session$sendCustomMessage("toggleVisibility", "nav_prev")
+      rvals$nav_prev_vis <<- ! rvals$nav_prev_vis
+    } else if((rvals$navi >= nrow(rvals$srtcovconfdf) && rvals$nav_next_vis)
+              || (rvals$navi < nrow(rvals$srtcovconfdf) && ! rvals$nav_next_vis)) {
+      session$sendCustomMessage("toggleVisibility", "nav_next")
+      rvals$nav_next_vis <<- ! rvals$nav_next_vis
+    }
+  })
+  
+  resetNavigation <- function() {
+    if(rvals$navi > 0) {
+      clear_markers(rvals$srtcovconfdf$county_fips[rvals$navi])
+      rvals$navi <<- 0
+    }
+  }
+  #####
   
   getCaseData <- reactive({
     df <- rvals$dtfcovconfdf
@@ -176,7 +228,7 @@ function(input, output, session) {
     paste0("marker_",featureId)
   }
   
-  addCountyMarker <- function(featureId, geo, covcosumdf) {
+  addCountyMarker <- function(featureId, geo, covcosumdf, center=FALSE) {
     mlid <- getCountyMarkerId(featureId)
     sel <- vapply(geo$features, function(f) f$id == featureId, TRUE)
     if(any(sel)) {
@@ -184,14 +236,21 @@ function(input, output, session) {
       feature <- features[[1]]
       mpoint <- get_lon_lat_center(feature)
       fcovdf <- covcosumdf[covcosumdf$county_fips==featureId,]
+      if(nrow(fcovdf) == 0) {
+        message("ERROR: No county summary found for feature ",featureId)
+      }
       lab <- HTML(paste(
         paste0("<b>County:</b>",fcovdf$county_name),
         paste0("<b>Confirmed:</b>",fcovdf$confirmed_cases),
         paste0("<b>Active:</b>",fcovdf$new_cases),
+        ifelse("active_rank" %in% colnames(fcovdf), paste0("<b>Active Rank:</b>",fcovdf$active_rank), ""),
         sep = "</br>"
       ))
-      leafletProxy("map") %>%
+      m <- leafletProxy("map") %>%
         addMarkers(lng = mpoint[1], lat = mpoint[2], layerId = mlid, label = lab)
+      if(center) {
+        m %>% flyTo(lng = mpoint[1], mpoint[2], zoom = 8)
+      }
     }
   }
   
@@ -202,7 +261,7 @@ function(input, output, session) {
     }
   })
   
-  updateCountyMarker <- function(ftrid) {
+  updateCountyMarker <- function(ftrid, center=FALSE) {
     mlid <- getCountyMarkerId(ftrid)
     sfids <- rvals$selftrids
     if(ftrid %in% sfids) {
@@ -211,7 +270,7 @@ function(input, output, session) {
         removeMarker(mlid)
     } else {
       sfids <- c(sfids, ftrid)
-      addCountyMarker(ftrid, geo = county_geo(), covcosumdf = rvals$covcosumdf)
+      addCountyMarker(ftrid, geo = county_geo(), covcosumdf = rvals$srtcovconfdf, center = center)
     }
     rvals$selftrids <<- sfids
   }
@@ -225,31 +284,36 @@ function(input, output, session) {
   observeEvent(input$map_marker_click, {
     mlid <- input$map_marker_click$id
     fid <- sub("^marker_", "", mlid)
-    # message("Removing marker ",mlid)
     leafletProxy("map") %>%
       removeMarker(mlid)
     rvals$selftrids <<- rvals$selftrids[rvals$selftrids != fid]
   })
   
-  observeEvent(input$clear_markers, {
-    if(length(rvals$selftrids) > 0) {
+  clear_markers <- function(ftrids) {
+    if(length(ftrids) > 0) {
       map <- leafletProxy("map")
-      lapply(rvals$selftrids, function(fid) {
+      lapply(ftrids, function(fid) {
         mlid <- paste0("marker_",fid)
-        map %>% removeMarker(mlid)
+        map <- map %>% removeMarker(mlid)
       })
-      rvals$selftrids <<- c()
+      rvals$selftrids <<- rvals$selftrids[! rvals$selftrids %in% ftrids]
     }
+  }
+  
+  observeEvent(input$clear_markers, {
+    resetNavigation()
+    clear_markers(rvals$selftrids)
   })
   
   observeEvent(input$zipcode, {
     if(! is.null(input$zipcode)) {
       if(nchar(input$zipcode) >= 5) {
+        resetNavigation()
         zc <- sub("-.+$", "", input$zipcode)
         lldf <- get_zipcode_lon_lat(zc)
         if(nrow(lldf) > 0) {
           leafletProxy("map") %>%
-            setView(lng = lldf$lon, lat = lldf$lat, zoom = 8)
+            flyTo(lng = lldf$lon, lat = lldf$lat, zoom = 8)
         } else {
           rvals$notifications[[length(rvals$notifications)+1]] <<-
             notificationItem(paste("Invalid Zip Code", zc), status = "warning")

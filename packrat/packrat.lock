@@ -165,6 +165,12 @@ Source: CRAN
 Version: 0.4.0
 Hash: f147621f72b561485bfffcae78c4f5d5
 
+Package: geosphere
+Source: CRAN
+Version: 1.5-10
+Hash: 7862d67ff53e4140d9b1945719deca54
+Requires: sp
+
 Package: ggplot2
 Source: CRAN
 Version: 3.1.0

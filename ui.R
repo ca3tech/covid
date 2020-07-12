@@ -58,8 +58,10 @@ dashboardPage(
             style = 'height: 90vh; overflow-y: auto;',
             fluidRow(
               fixedRow(
+                column(2, textInput("zipcode", label = NULL, placeholder = "zip code")),
                 column(1, actionButton("clear_markers", label = NULL, icon = icon("eraser"))),
-                column(2, textInput("zipcode", label = NULL, placeholder = "zip code"))
+                column(1, actionButton("nav_prev", label = NULL, icon = icon("chevron-left"))),
+                column(1, actionButton("nav_next", label = NULL, icon = icon("chevron-right")))
               ),
               style = "padding-bottom: 10px; padding-left: 15px"
             ),
@@ -82,13 +84,21 @@ dashboardPage(
               title = "Click and drag endpoint or click on bar to increase/decrease",
               placement = "top"
             ),
-            bsTooltip("clear_markers",
-              title = "Click to remove all selected counties",
-              placement = "bottom"
-            ),
             bsTooltip("zipcode",
               title = "Enter a zip code to zoom map",
               placement = "bottom"
+            ),
+            bsTooltip("clear_markers",
+                      title = "Click to remove all selected counties",
+                      placement = "bottom"
+            ),
+            bsTooltip("nav_next",
+                      title = "Click to navigate to next most active county",
+                      placement = "bottom"
+            ),
+            bsTooltip("nav_prev",
+                      title = "Click to navigate to previous most active county",
+                      placement = "bottom"
             )
           ),
           mainPanel(
