@@ -47,7 +47,7 @@ update_state_cases <- function(gdf) {
 }
 
 covid_confirmed_usa <- function(progress=NULL) {
-  i <- 1 / 12
+  i <- 1 / 14
   .notify(progress, 0.0, "Retrieving COVID19 confirmed cases data")
   df <- read.csv("https://usafactsstatic.blob.core.windows.net/public/data/covid-19/covid_confirmed_usafacts.csv")
   .notify(progress, i)
@@ -81,6 +81,13 @@ covid_confirmed_usa <- function(progress=NULL) {
   df <- df %>%
     dplyr::arrange(state, county_fips, date_num)
   .notify(progress, i)
+  
+  cddf <- covid_death_usa(progress) %>%
+    dplyr::mutate(date_num=as.numeric(date))
+  .notify(progress, i)
+  df <- merge(df, cddf[, c("state_fips", "county_fips", "date_num", "confirmed_deaths", "new_deaths")], all.x=TRUE)
+  .notify(progress, i)
+
   df %>%
     dplyr::mutate(date_num=NULL)
 }
@@ -110,6 +117,80 @@ covid_county_population <- function(progress=NULL) {
   .notify(progress, i)
   df %>%
     dplyr::select(-population.x, -population.y)
+}
+
+add_new_deaths <- function(gdf) {
+  df <- gdf %>%
+    dplyr::arrange(date_num)
+  states <- unique(df$state)
+  cfips <- unique(df$county_fips)
+  if(length(states) > 1 || length(cfips) > 1) {
+    stop("add_new_deaths got dataframe with non-unique state (",paste(states,collapse=","),") and/or county_fips (",paste(cfips,collapse=","),")")
+  }
+  df$new_deaths <- as.numeric(NA)
+  df$new_deaths[2:nrow(df)] <- df$confirmed_deaths[2:nrow(df)] - df$confirmed_deaths[1:(nrow(df)-1)]
+  df
+}
+
+update_state_deaths <- function(gdf) {
+  df <- dplyr::ungroup(gdf) %>%
+    dplyr::mutate(datest=as.character(date, "%Y-%m-%d"))
+  stdf <- df[df$county_fips == 0,]
+  cntdf <- df[df$county_fips != 0, c("state", "county_name", "datest", "confirmed_deaths", "new_deaths")]
+  cstdf <- dplyr::group_by(cntdf, state, datest) %>%
+    dplyr::summarise(confirmed_deaths_total=sum(confirmed_deaths, na.rm = TRUE), new_deaths_total=sum(new_deaths, na.rm = TRUE))
+  stdf <- merge(stdf, cstdf)
+  stdf$confirmed_deaths_rev <- stdf$confirmed_deaths + stdf$confirmed_deaths_total
+  stdf$new_deaths_rev <- stdf$new_deaths + stdf$new_deaths_total
+  stcols <- colnames(stdf)
+  stcols <- stcols[! grepl("deaths(_total)*$", tolower(stcols), perl = TRUE)]
+  df <- merge(df, stdf[, stcols], all.x = TRUE)
+  sel <- ! is.na(df$confirmed_deaths_rev)
+  df$confirmed_deaths[sel] <- df$confirmed_deaths_rev[sel]
+  sel <- ! is.na(df$new_deaths_rev)
+  df$new_deaths[sel] <- df$new_deaths_rev[sel]
+  cnames <- colnames(df)
+  cnames <- cnames[! grepl("(deaths_rev|datest)", cnames, ignore.case = TRUE)]
+  df[, cnames]
+}
+
+covid_death_usa <- function(progress=NULL) {
+  i <- 1 / 12
+  .notify(progress, 0.0, "Retrieving COVID19 confirmed deaths data")
+  df <- read.csv("https://usafactsstatic.blob.core.windows.net/public/data/covid-19/covid_deaths_usafacts.csv")
+  .notify(progress, i)
+  df <- df %>%
+    tidyr::gather(key="date", value="confirmed_deaths", -countyFIPS, -County.Name, -State, -stateFIPS)
+  .notify(progress, i)
+  df <- df %>%
+    dplyr::mutate(date=as.Date(date, "X%m.%d.%y"))
+  .notify(progress, i)
+  df <- df %>%
+    dplyr::mutate(date_num=as.numeric(date))
+  .notify(progress, i)
+  df <- df %>%
+    dplyr::rename(county_fips=countyFIPS, county_name=County.Name, state=State, state_fips=stateFIPS)
+  .notify(progress, i)
+  df <- df %>%
+    dplyr::arrange(state, county_fips, date_num)
+  .notify(progress, i)
+  df <- df %>%
+    dplyr::group_by(state, county_fips)
+  .notify(progress, i)
+  df <- df %>%
+    dplyr::do(add_new_deaths(.))
+  .notify(progress, i)
+  df <- df %>%
+    dplyr::group_by(state)
+  .notify(progress, i)
+  df <- df %>%
+    dplyr::do(update_state_deaths(.))
+  .notify(progress, i)
+  df <- df %>%
+    dplyr::arrange(state, county_fips, date_num)
+  .notify(progress, i)
+  df %>%
+    dplyr::mutate(date_num=NULL)
 }
 
 calculate_active_case_est <- function(dtgdf, window=14) {
@@ -368,7 +449,21 @@ get_zipcode_lon_lat <- function(zip_codes) {
   }
 }
 
+# I found a feature that had a geometry$coordinates
+# value that did not match the expected structure
+# resulting in an application crash. This fixes that.
+.fix_feature_coords <- function(feature) {
+  if(length(feature$geometry$coordinates) > 1) {
+    if(all(vapply(feature$geometry$coordinates, length, 1) > 1)) {
+      feature$geometry$coordinates <- lapply(feature$geometry$coordinates, list)
+      feature$geometry$type <- "MultiPolygon"
+    }
+  }
+  feature
+}
+
 get_lon_lat_center <- function(feature) {
+  feature <- .fix_feature_coords(feature)
   pts <- .geo_coord_to_points(feature$geometry$coordinates)
   if(is.data.frame(pts)) {
     as.numeric(geosphere::centroid(pts))
