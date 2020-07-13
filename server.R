@@ -187,32 +187,48 @@ function(input, output, session) {
     }
   })
   
-  output$dash_plots <- renderPlotly({
+  output$confirmed_cases_plot <- renderPlotly({
     ccdf <- getCaseData()
     if(! is.null(ccdf) && nrow(ccdf) > 0) {
-      inc <- 1 / 8
-      withProgress({
-        setProgress(message = "Building confirmed cases plot")
-        plots <- list(confirmed_cases_plot(ccdf))
-        incProgress(inc, message = "Building new cases plot")
-        plots[[length(plots)+1]] <- new_cases_plot(ccdf)
-        
-        setProgress(message = "Building confirmed deaths plot")
-        plots[[length(plots)+1]] <- confirmed_deaths_plot(ccdf)
-        incProgress(inc, message = "Building new deaths plot")
-        plots[[length(plots)+1]] <- new_deaths_plot(ccdf)
-        incProgress(inc, message = "Building death rate plot")
-        plots[[length(plots)+1]] <- death_rate_plot(ccdf)
-        
-        incProgress(inc, message = "Retrieving stats")
-        stdf <- getStatsData()
-        if(! is.null(stdf)) {
-          incProgress(inc, message = "Building exposure plot")
-          plots[[length(plots)+1]] <- exposure_prob_plot(stdf)
-        }
-        incProgress(inc, message = "Building composite plot")
-        subplot(plots, nrows = 6, margin = c(0, 0, 0.02, 0.05), titleX = TRUE, titleY = TRUE)
-      }, message = "Building plots")
+      confirmed_cases_plot(ccdf)
+    }
+  })
+  
+  output$new_cases_plot <- renderPlotly({
+    ccdf <- getCaseData()
+    if(! is.null(ccdf) && nrow(ccdf) > 0) {
+      new_cases_plot(ccdf)
+    }
+  })
+  
+  output$confirmed_deaths_plot <- renderPlotly({
+    ccdf <- getCaseData()
+    if(! is.null(ccdf) && nrow(ccdf) > 0) {
+      confirmed_deaths_plot(ccdf)
+    }
+  })
+  
+  output$new_deaths_plot <- renderPlotly({
+    ccdf <- getCaseData()
+    if(! is.null(ccdf) && nrow(ccdf) > 0) {
+      new_deaths_plot(ccdf)
+    }
+  })
+  
+  output$death_rate_plot <- renderPlotly({
+    ccdf <- getCaseData()
+    if(! is.null(ccdf) && nrow(ccdf) > 0) {
+      death_rate_plot(ccdf)
+    }
+  })
+  
+  output$exposure_prob_plot <- renderPlotly({
+    ccdf <- getCaseData()
+    if(! is.null(ccdf) && nrow(ccdf) > 0) {
+      stdf <- getStatsData()
+      if(! is.null(stdf)) {
+        exposure_prob_plot(stdf)
+      }
     }
   })
   

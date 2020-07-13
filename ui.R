@@ -104,9 +104,14 @@ dashboardPage(
           mainPanel(
             width = 4,
             style = 'height: 90vh; overflow-y: auto;',
-            fluidRow(box(uiOutput("stats_data"), width = 12)),
-            fluidRow(box(plotlyOutput("dash_plots", height = "1000px"), width = 12)),
-            fluidRow(box(uiOutput("co_selected"), width = 12))
+            box(uiOutput("stats_data"), width = 12),
+            box(plotlyOutput("confirmed_cases_plot", height = "200px"), width = 12, style = "padding: 2px"),
+            box(plotlyOutput("new_cases_plot", height = "200px"), width = 12, style = "padding: 2px"),
+            box(plotlyOutput("confirmed_deaths_plot", height = "200px"), width = 12, style = "padding: 2px"),
+            box(plotlyOutput("new_deaths_plot", height = "200px"), width = 12, style = "padding: 2px"),
+            box(plotlyOutput("death_rate_plot", height = "200px"), width = 12, style = "padding: 2px"),
+            box(plotlyOutput("exposure_prob_plot", height = "200px"), width = 12, style = "padding: 2px"),
+            box(uiOutput("co_selected"), width = 12)
           )
         )
       ),

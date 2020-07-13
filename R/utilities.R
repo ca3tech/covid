@@ -308,7 +308,8 @@ confirmed_cases_plot <- function(casedf) {
     layout(plot_bgcolor = "#888",
            xaxis = list(title = "Date", tickangle = -45),
            yaxis = list(title = "Confirmed Cases")
-    )
+    ) %>%
+    config(displayModeBar = FALSE)
 }
 
 new_cases_plot <- function(casedf) {
@@ -319,7 +320,8 @@ new_cases_plot <- function(casedf) {
     layout(plot_bgcolor = "#888", showlegend = FALSE,
            xaxis = list(title = "Date", tickangle = -45),
            yaxis = list(title = "New Cases")
-    )
+    ) %>%
+    config(displayModeBar = FALSE)
 }
 
 confirmed_deaths_plot <- function(casedf) {
@@ -328,7 +330,8 @@ confirmed_deaths_plot <- function(casedf) {
     layout(plot_bgcolor = "#888",
            xaxis = list(title = "Date", tickangle = -45),
            yaxis = list(title = "Confirmed Deaths")
-    )
+    ) %>%
+    config(displayModeBar = FALSE)
 }
 
 new_deaths_plot <- function(casedf) {
@@ -339,7 +342,8 @@ new_deaths_plot <- function(casedf) {
     layout(plot_bgcolor = "#888", showlegend = FALSE,
            xaxis = list(title = "Date", tickangle = -45),
            yaxis = list(title = "New Deaths")
-    )
+    ) %>%
+    config(displayModeBar = FALSE)
 }
 
 death_rate_plot <- function(casedf) {
@@ -351,7 +355,8 @@ death_rate_plot <- function(casedf) {
     layout(plot_bgcolor = "#888",
            xaxis = list(title = "Date", tickangle = -45),
            yaxis = list(title = "Death Rate")
-    )
+    ) %>%
+    config(displayModeBar = FALSE)
 }
 
 compute_exposure_data <- function(statsdf) {
@@ -384,7 +389,8 @@ exposure_prob_plot <- function(statsdf) {
              tickangle = -45
            ),
            yaxis = list(title = "Probability Exposed")
-    )
+    ) %>%
+    config(displayModeBar = FALSE)
 }
 
 county_fips_geo <- function() {
