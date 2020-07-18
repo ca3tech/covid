@@ -46,77 +46,101 @@ update_state_cases <- function(gdf) {
   }
 }
 
-covid_confirmed_usa <- function(progress=NULL) {
-  i <- 1 / 14
-  .notify(progress, 0.0, "Retrieving COVID19 confirmed cases data")
-  df <- read.csv("https://usafactsstatic.blob.core.windows.net/public/data/covid-19/covid_confirmed_usafacts.csv")
-  .notify(progress, i)
-  df <- df %>%
-    tidyr::gather(key="date", value="confirmed_cases", -countyFIPS, -County.Name, -State, -stateFIPS)
-  .notify(progress, i)
-  df <- df %>%
-    dplyr::mutate(date=as.Date(date, "X%m.%d.%y"))
-  .notify(progress, i)
-  df <- df %>%
-    dplyr::mutate(date_num=as.numeric(date))
-  .notify(progress, i)
-  df <- df %>%
-    dplyr::rename(county_fips=countyFIPS, county_name=County.Name, state=State, state_fips=stateFIPS)
-  .notify(progress, i)
-  df <- df %>%
-    dplyr::arrange(state, county_fips, date_num)
-  .notify(progress, i)
-  df <- df %>%
-    dplyr::group_by(state, county_fips)
-  .notify(progress, i)
-  df <- df %>%
-    dplyr::do(add_new_cases(.))
-  .notify(progress, i)
-  df <- df %>%
-    dplyr::group_by(state)
-  .notify(progress, i)
-  df <- df %>%
-    dplyr::do(update_state_cases(.))
-  .notify(progress, i)
-  df <- df %>%
-    dplyr::arrange(state, county_fips, date_num)
-  .notify(progress, i)
-  
-  cddf <- covid_death_usa(progress) %>%
-    dplyr::mutate(date_num=as.numeric(date))
-  .notify(progress, i)
-  df <- merge(df, cddf[, c("state_fips", "county_fips", "date_num", "confirmed_deaths", "new_deaths")], all.x=TRUE)
-  .notify(progress, i)
+get_cached_data <- function(cachefile, do.test=TRUE) {
+  df <- NULL
+  if(file.exists(cachefile) && do.test) {
+    df <- readRDS(cachefile)
+    md <- max(df$date)
+    if(Sys.Date() - md > 1) {
+      df <- NULL
+    }
+  }
+  df
+}
 
-  df %>%
-    dplyr::mutate(date_num=NULL)
+covid_confirmed_usa <- function(progress=NULL) {
+  cachefile <- "data/covid_case.rds"
+  df <- get_cached_data(cachefile)
+  if(is.null(df)) {
+    i <- 1 / 14
+    .notify(progress, 0.0, "Retrieving COVID19 confirmed cases data")
+    df <- read.csv("https://usafactsstatic.blob.core.windows.net/public/data/covid-19/covid_confirmed_usafacts.csv")
+    .notify(progress, i)
+    df <- df %>%
+      tidyr::gather(key="date", value="confirmed_cases", -countyFIPS, -County.Name, -State, -stateFIPS)
+    .notify(progress, i)
+    df <- df %>%
+      dplyr::mutate(date=as.Date(date, "X%m.%d.%y"))
+    .notify(progress, i)
+    df <- df %>%
+      dplyr::mutate(date_num=as.numeric(date))
+    .notify(progress, i)
+    df <- df %>%
+      dplyr::rename(county_fips=countyFIPS, county_name=County.Name, state=State, state_fips=stateFIPS)
+    .notify(progress, i)
+    df <- df %>%
+      dplyr::arrange(state, county_fips, date_num)
+    .notify(progress, i)
+    df <- df %>%
+      dplyr::group_by(state, county_fips)
+    .notify(progress, i)
+    df <- df %>%
+      dplyr::do(add_new_cases(.))
+    .notify(progress, i)
+    df <- df %>%
+      dplyr::group_by(state)
+    .notify(progress, i)
+    df <- df %>%
+      dplyr::do(update_state_cases(.))
+    .notify(progress, i)
+    df <- df %>%
+      dplyr::arrange(state, county_fips, date_num)
+    .notify(progress, i)
+    
+    cddf <- covid_death_usa(progress) %>%
+      dplyr::mutate(date_num=as.numeric(date))
+    .notify(progress, i)
+    df <- merge(df, cddf[, c("state_fips", "county_fips", "date_num", "confirmed_deaths", "new_deaths")], all.x=TRUE)
+    .notify(progress, i)
+  
+    df <- df %>%
+      dplyr::mutate(date_num=NULL)
+    saveRDS(df, cachefile)
+  }
+  df
 }
 
 covid_county_population <- function(progress=NULL) {
-  i <- 1 / 2
-  .notify(progress, 0.0, "Retrieving population data")
-  df <- read.csv("https://usafactsstatic.blob.core.windows.net/public/data/covid-19/covid_county_population_usafacts.csv")
-  .notify(progress, i)
-  df <- df %>%
-    dplyr::rename(county_fips=countyFIPS, county_name=County.Name, state=State)
-  i <- 1 / 3
-  .notify(progress, 0.0, "Calculating state populations")
-  sdf <- dplyr::group_by(df[df$county_fips!=0,], state)
-  .notify(progress, i)
-  sdf <- sdf %>%
-    dplyr::summarise(population=sum(population, na.rm = TRUE))
-  .notify(progress, i)
-  sdf <- sdf %>%
-    dplyr::mutate(county_fips=0) %>%
-    as.data.frame()
-  .notify(progress, 0.0, "Updating state populations")
-  df <- dplyr::left_join(df, sdf, by=c("county_fips", "state"))
-  .notify(progress, i)
-  df <- df %>%
-    dplyr::mutate(population=ifelse(is.na(population.y), population.x, population.y))
-  .notify(progress, i)
-  df %>%
-    dplyr::select(-population.x, -population.y)
+  cachefile <- "data/county_population.rds"
+  df <- get_cached_data(cachefile, FALSE)
+  if(is.null(df)) {
+    i <- 1 / 2
+    .notify(progress, 0.0, "Retrieving population data")
+    df <- read.csv("https://usafactsstatic.blob.core.windows.net/public/data/covid-19/covid_county_population_usafacts.csv")
+    .notify(progress, i)
+    df <- df %>%
+      dplyr::rename(county_fips=countyFIPS, county_name=County.Name, state=State)
+    i <- 1 / 3
+    .notify(progress, 0.0, "Calculating state populations")
+    sdf <- dplyr::group_by(df[df$county_fips!=0,], state)
+    .notify(progress, i)
+    sdf <- sdf %>%
+      dplyr::summarise(population=sum(population, na.rm = TRUE))
+    .notify(progress, i)
+    sdf <- sdf %>%
+      dplyr::mutate(county_fips=0) %>%
+      as.data.frame()
+    .notify(progress, 0.0, "Updating state populations")
+    df <- dplyr::left_join(df, sdf, by=c("county_fips", "state"))
+    .notify(progress, i)
+    df <- df %>%
+      dplyr::mutate(population=ifelse(is.na(population.y), population.x, population.y))
+    .notify(progress, i)
+    df <- df %>%
+      dplyr::select(-population.x, -population.y)
+    saveRDS(df, cachefile)
+  }
+  df
 }
 
 add_new_deaths <- function(gdf) {
@@ -155,42 +179,48 @@ update_state_deaths <- function(gdf) {
 }
 
 covid_death_usa <- function(progress=NULL) {
-  i <- 1 / 12
-  .notify(progress, 0.0, "Retrieving COVID19 confirmed deaths data")
-  df <- read.csv("https://usafactsstatic.blob.core.windows.net/public/data/covid-19/covid_deaths_usafacts.csv")
-  .notify(progress, i)
-  df <- df %>%
-    tidyr::gather(key="date", value="confirmed_deaths", -countyFIPS, -County.Name, -State, -stateFIPS)
-  .notify(progress, i)
-  df <- df %>%
-    dplyr::mutate(date=as.Date(date, "X%m.%d.%y"))
-  .notify(progress, i)
-  df <- df %>%
-    dplyr::mutate(date_num=as.numeric(date))
-  .notify(progress, i)
-  df <- df %>%
-    dplyr::rename(county_fips=countyFIPS, county_name=County.Name, state=State, state_fips=stateFIPS)
-  .notify(progress, i)
-  df <- df %>%
-    dplyr::arrange(state, county_fips, date_num)
-  .notify(progress, i)
-  df <- df %>%
-    dplyr::group_by(state, county_fips)
-  .notify(progress, i)
-  df <- df %>%
-    dplyr::do(add_new_deaths(.))
-  .notify(progress, i)
-  df <- df %>%
-    dplyr::group_by(state)
-  .notify(progress, i)
-  df <- df %>%
-    dplyr::do(update_state_deaths(.))
-  .notify(progress, i)
-  df <- df %>%
-    dplyr::arrange(state, county_fips, date_num)
-  .notify(progress, i)
-  df %>%
-    dplyr::mutate(date_num=NULL)
+  cachefile <- "data/covid_death.rds"
+  df <- get_cached_data(cachefile)
+  if(is.null(df)) {
+    i <- 1 / 12
+    .notify(progress, 0.0, "Retrieving COVID19 confirmed deaths data")
+    df <- read.csv("https://usafactsstatic.blob.core.windows.net/public/data/covid-19/covid_deaths_usafacts.csv")
+    .notify(progress, i)
+    df <- df %>%
+      tidyr::gather(key="date", value="confirmed_deaths", -countyFIPS, -County.Name, -State, -stateFIPS)
+    .notify(progress, i)
+    df <- df %>%
+      dplyr::mutate(date=as.Date(date, "X%m.%d.%y"))
+    .notify(progress, i)
+    df <- df %>%
+      dplyr::mutate(date_num=as.numeric(date))
+    .notify(progress, i)
+    df <- df %>%
+      dplyr::rename(county_fips=countyFIPS, county_name=County.Name, state=State, state_fips=stateFIPS)
+    .notify(progress, i)
+    df <- df %>%
+      dplyr::arrange(state, county_fips, date_num)
+    .notify(progress, i)
+    df <- df %>%
+      dplyr::group_by(state, county_fips)
+    .notify(progress, i)
+    df <- df %>%
+      dplyr::do(add_new_deaths(.))
+    .notify(progress, i)
+    df <- df %>%
+      dplyr::group_by(state)
+    .notify(progress, i)
+    df <- df %>%
+      dplyr::do(update_state_deaths(.))
+    .notify(progress, i)
+    df <- df %>%
+      dplyr::arrange(state, county_fips, date_num)
+    .notify(progress, i)
+    df <- df %>%
+      dplyr::mutate(date_num=NULL)
+    saveRDS(df, cachefile)
+  }
+  df
 }
 
 calculate_active_case_est <- function(dtgdf, window=14) {
@@ -394,7 +424,7 @@ exposure_prob_plot <- function(statsdf) {
 }
 
 county_fips_geo <- function() {
-  readRDS("data/geojson-counties-fips.Rds")
+  readRDS("data/geojson-counties-fips.rds")
 }
 
 compute_county_rollup <- function(casedf) {
