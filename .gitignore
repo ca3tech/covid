@@ -5,3 +5,6 @@ covid.Rproj
 rsconnect/
 www/about.html
 packrat/src/
+data/covid_case.rds
+data/covid_death.rds
+data/county_population.rds

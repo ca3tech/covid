@@ -50,6 +50,9 @@ The summary table shows the following:
       indicated by the "Active Days Assumption"
 - Active Case Estimate Days
     - This is simply the "Active Days Assumption" value
+- Death Rate
+    - The most recent *Confirmed Cases* divided by the most
+      recent *Confirmed Deaths*
 - Population
     - This is the population for the selected geographic region
 - Probability of Exposure
@@ -70,6 +73,13 @@ The summary table shows the following:
       greater than zero means that the number of new cases
       is increasing and a number less than zero means that
       the number of new cases is decreasing
+- New Death Trend
+    - As you will note in the "New Deaths" plot there is a
+      yellow line, which is a line that best fits the data;
+      this is the slope of that line. Therefore, a number
+      greater than zero means that the number of new deaths
+      is increasing and a number less than zero means that
+      the number of new deaths is decreasing
 
 ## Calculating "Probability of Exposure"
 

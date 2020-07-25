@@ -66,6 +66,7 @@ dashboardPage(
               style = "padding-bottom: 10px; padding-left: 15px"
             ),
             leafletOutput("map", height = "600px"),
+            uiOutput("date_range_ui"),
             sliderInput("active_days",
               label = "Active Days Assumption",
               min = 1,
@@ -80,9 +81,13 @@ dashboardPage(
                             sep = "<br/>"),
               placement = "bottom"
             ),
-            bsTooltip("active_days",
-              title = "Click and drag endpoint or click on bar to increase/decrease",
+            bsTooltip("date_range_ui",
+              title = "Click to select the dates date range to review",
               placement = "top"
+            ),
+            bsTooltip("active_days",
+                      title = "Click and drag endpoint or click on bar to increase/decrease",
+                      placement = "top"
             ),
             bsTooltip("zipcode",
               title = "Enter a zip code to zoom map",
