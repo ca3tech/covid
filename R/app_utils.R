@@ -1,12 +1,20 @@
 
-getMap <- function(db, progress=NULL) {
-  .notify(progress, 0, "Building map")
-  m <- leaflet() %>%
-    setView(lng = -98.583, lat = 39.833, zoom = 3) %>%
-    addTiles() %>%
-    addGeoJSON(db.getCountyGeo(db))
-  .notify(progress, 0.75, "Rendering map")
-  m
+# getMap <- function(db, progress=NULL) {
+#   .notify(progress, 0, "Building map")
+#   m <- leaflet() %>%
+#     setView(lng = -98.583, lat = 39.833, zoom = 3) %>%
+#     addTiles() %>%
+#     addGeoJSON(db.getCountyGeo(db))
+#   .notify(progress, 0.75, "Rendering map")
+#   m
+# }
+getMap <- function(county_geo) {
+  if(! is.null(county_geo)) {
+    leaflet() %>%
+      setView(lng = -98.583, lat = 39.833, zoom = 3) %>%
+      addTiles() %>%
+      addGeoJSON(county_geo)
+  }
 }
 
 # Manage map markers
