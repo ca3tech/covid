@@ -364,7 +364,7 @@ db.registerCountyGeo <- function(self, observer) {
 
 .getCountyGeo <- function(county_summary_rank) {
   if(! is.null(county_summary_rank)) {
-    geo <- readRDS("data/geojson-counties-fips.rds")
+    geo <- readRDS("data/geojson-counties-fips.Rds")
     ncmax <- 9 * log(max(county_summary_rank$active_case_est), 2) / 8
     sel <- vapply(geo$features, function(feature) {
       as.numeric(feature$id) %in% county_summary_rank$county_fips
