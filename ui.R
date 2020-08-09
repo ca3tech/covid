@@ -49,7 +49,7 @@ dashboardPage(
     )
   ),
   body = dashboardBody(
-    add_busy_spinner(spin = "fading-circle", timeout = 1000, position = "full-page"),
+    add_busy_spinner(spin = "fading-circle", timeout = 2000, position = "top-right"),
     tabItems(
       tabItem("dashboard",
         sidebarLayout(
@@ -65,8 +65,8 @@ dashboardPage(
               ),
               style = "padding-bottom: 10px; padding-left: 15px"
             ),
-            leafletOutput("map", height = "600px"),
-            uiOutput("date_range_ui"),
+            uiOutput("map_ui"),
+            dateRangeInput("date_range", "Date Range"),
             sliderInput("active_days",
               label = "Active Days Assumption",
               min = 1,
@@ -110,12 +110,12 @@ dashboardPage(
             width = 4,
             style = 'height: 90vh; overflow-y: auto;',
             box(uiOutput("stats_data"), width = 12),
-            box(plotlyOutput("confirmed_cases_plot", height = "200px"), width = 12, style = "padding: 2px"),
-            box(plotlyOutput("new_cases_plot", height = "200px"), width = 12, style = "padding: 2px"),
-            box(plotlyOutput("confirmed_deaths_plot", height = "200px"), width = 12, style = "padding: 2px"),
-            box(plotlyOutput("new_deaths_plot", height = "200px"), width = 12, style = "padding: 2px"),
-            box(plotlyOutput("death_rate_plot", height = "200px"), width = 12, style = "padding: 2px"),
-            box(plotlyOutput("exposure_prob_plot", height = "200px"), width = 12, style = "padding: 2px"),
+            box(uiOutput("confirmed_cases_plot_ui"), width = 12, style = "padding: 2px"),
+            box(uiOutput("new_cases_plot_ui"), width = 12, style = "padding: 2px"),
+            box(uiOutput("confirmed_deaths_plot_ui"), width = 12, style = "padding: 2px"),
+            box(uiOutput("new_deaths_plot_ui"), width = 12, style = "padding: 2px"),
+            box(uiOutput("death_rate_plot_ui"), width = 12, style = "padding: 2px"),
+            box(uiOutput("exposure_prob_plot_ui"), width = 12, style = "padding: 2px"),
             box(uiOutput("co_selected"), width = 12)
           )
         )

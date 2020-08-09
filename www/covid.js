@@ -1,4 +1,4 @@
-initqstr = window.location.search;
+var initqstr = window.location.search;
 
 $(document).on("shiny:sessioninitialized", function(event) {
   var params = new URLSearchParams(initqstr);
