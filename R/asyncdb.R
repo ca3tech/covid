@@ -18,8 +18,6 @@ db.new <- function() {
   kdtsum <- "date_summary"
   kstats <- "stats"
   kcogeo <- "county_geo"
-  atvcache <- list()
-  csumcache <- list()
   actdays <- NULL
   counties <- NULL
   class(self) <- c("asyncdb", class(self))
@@ -28,60 +26,60 @@ db.new <- function() {
     actdays <<- days
     dbus.set(self, kactdays, days)
   }
-  self$getActiveData <- function() {
-    atvcache[[as.character(self$getActiveDays())]]
-  }
-  self$setActiveData <- function(l) {
-    if(! is.null(l)) {
-      atvcache[[as.character(l$active_days)]] <<- l$data
-      dbus.set(self, kactdata, l$data)
+  self$getActiveData <- function() self$getValue(kactdata)
+  self$setActiveData <- function(df) {
+    if(! is.null(df)) {
+      dbus.set(self, kactdata, df)
     }
   }
   self$registerActiveData <- function(obs) {
-    dbus.register(self, kactdata, .nullop, onFulfilled = obs)
+    dbus.register(self, kactdata, obs, async=FALSE)
   }
   self$getCounties <- function() self$getValue(kcounties)
   self$setCounties <- function(v) {
     counties <<- v
     dbus.set(self, kcounties, v)
   }
+  self$registerCounties <- function(obs) {
+    dbus.register(self, kcounties, obs, async=FALSE)
+  }
   self$getCountyCaseData <- function() self$getValue(kcocase)
   self$setCountyCaseData <- function(df) dbus.set(self, kcocase, df)
   self$getCountyGeo <- function() self$getValue(kcogeo)
   self$setCountyGeo <- function(df) dbus.set(self, kcogeo, df)
   self$registerCountyGeo <- function(obs) {
-    dbus.register(self, kcogeo, .nullop, onFulfilled = obs)
+    dbus.register(self, kcogeo, obs, async=FALSE)
   }
   self$getCountySummaryData <- function() self$getValue(kcosum)
   self$setCountySummaryData <- function(df) dbus.set(self, kcosum, df)
   self$getCountySummaryRankData <- function() self$getValue(kcosumrk)
   self$setCountySummaryRankData <- function(df) dbus.set(self, kcosumrk, df)
+  self$registerCountySummaryRankData <- function(obs) {
+    dbus.register(self, kcosumrk, obs, async=FALSE)
+  }
   self$getDateRangeActiveData <- function() self$getValue(kdract)
   self$setDateRangeActiveData <- function(df) dbus.set(self, kdract, df)
   self$getDateSummaryData <- function() self$getValue(kdtsum)
   self$setDateSummaryData <- function(df) dbus.set(self, kdtsum, df)
+  self$registerDateSummaryData <- function(obs) {
+    dbus.register(self, kdtsum, obs, async=FALSE)
+  }
   self$getMaxDate <- function() self$getValue(kmaxdate)
   self$setMaxDate <- function(d) dbus.set(self, kmaxdate, d)
   self$getMinDate <- function() self$getValue(kmindate)
   self$setMinDate <- function(d) dbus.set(self, kmindate, d)
   self$getStatsData <- function() self$getValue(kstats)
   self$setStatsData <- function(df) dbus.set(self, kstats, df)
-  dbus.register(self, c(kcase, kactdays),
-                function(case, active_days) {
-                  if(! is.null(active_days)) {
-                    k <- as.character(active_days)
-                    if(! k %in% names(atvcache)) {
-                      .getActiveData(case, active_days)
-                    } else {
-                      atvcache[[k]]
-                    }
-                  }
-                },
+  self$registerStatsData <- function(obs) {
+    dbus.register(self, kstats, obs, async=FALSE)
+  }
+  dbus.register(self, c(kcase, kactdays), .getActiveData,
                 onFulfilled = self$setActiveData,
                 onRejected = function(e) {
                   stop("Active case estimate data retrieval failed: ", e)
                 })
   dbus.register(self, c(kactdata, kmindate, kmaxdate), .getDateRangeActiveData,
+                async = FALSE,
                 onFulfilled = self$setDateRangeActiveData,
                 onRejected = function(e) {
                   stop("Date range active data retrieval failed: ", e)
@@ -97,6 +95,7 @@ db.new <- function() {
                   stop("County summary rank data retrieval failed: ", e)
                 })
   dbus.register(self, c(kdract, kcounties), .getCountyCaseData,
+                async = FALSE,
                 onFulfilled = self$setCountyCaseData,
                 onRejected = function(e) {
                   stop("County case data retrieval failed: ", e)
@@ -160,6 +159,10 @@ db.setCounties <- function(self, counties) {
   self$setCounties(counties)
 }
 
+db.registerCounties <- function(self, observer) {
+  self$registerCounties(observer)
+}
+
 db.getMaxDate <- function(self) {
   self$getMaxDate()
 }
@@ -184,8 +187,16 @@ db.registerCountyGeo <- function(self, observer) {
   self$registerCountyGeo(observer)
 }
 
-.nullop <- function(val) {
-  val
+db.registerCountySummaryRankData <- function(self, observer) {
+  self$registerCountySummaryRankData(observer)
+}
+
+db.registerDateSummaryData <- function(self, observer) {
+  self$registerDateSummaryData(observer)
+}
+
+db.registerStatsData <- function(self, observer) {
+  self$registerStatsData(observer)
 }
 
 .getCaseData <- function() {
@@ -259,13 +270,9 @@ db.registerCountyGeo <- function(self, observer) {
 
 .getActiveData <- function(case, active_days) {
   if(! (is.null(case) || is.null(active_days))) {
-    df <- dplyr::group_by(case, state_fips, county_fips) %>%
+    dplyr::group_by(case, state_fips, county_fips) %>%
       dplyr::do(.getCountyActiveData(., active_days)) %>%
       dplyr::ungroup()
-    list(
-      active_days = active_days,
-      data = df
-    )
   }
 }
 
@@ -277,10 +284,25 @@ db.registerCountyGeo <- function(self, observer) {
   df
 }
 
+.log <- function(msg) {
+  write(msg, "async.log", append = T)
+}
+
 .getDateRangeActiveData <- function(active_data, min_date, max_date) {
-  if(! (is.null(active_data) || is.null(min_date) || is.null(max_date))) {
-    active_data[active_data$date >= min_date & active_data$date <= max_date,]
+  df <- NULL
+  if(! is.null(active_data)) {
+    df <- active_data
+    if(! is.null(min_date)) {
+      df <- df[df$date >= min_date,]
+    }
+    if(! is.null(max_date)) {
+      df <- df[df$date <= max_date,]
+    }
+    # .log(paste0("(",paste(dim(active_data),collapse=","),")[",min_date,",",max_date,"] = (",paste(dim(df),collapse=","),"): .getDateRangeActiveData"))
+  } else {
+    # .log("active_data is null: .getDateRangeActiveData")
   }
+  df
 }
 
 .getCountySummaryData <- function(date_range_active) {
@@ -302,13 +324,23 @@ db.registerCountyGeo <- function(self, observer) {
 }
 
 .getCountyCaseData <- function(date_range_active, counties) {
-  if(! (is.null(date_range_active) || is.null(counties))) {
-    date_range_active[date_range_active$county_fips %in% counties,]
+#  .log(paste0(is.null(date_range_active),": .getCountyCaseData"))
+  df <- NULL
+  if(! is.null(date_range_active)) {
+    df <- date_range_active
+    if(! is.null(counties) && length(counties) > 0) {
+      # .log(paste0("filtering counties (",paste(counties,collapse=","),"): .getCountyCaseData"))
+      df <- df[df$county_fips %in% counties,]
+    }
+    # .log(paste0("dim(df) = ",dim(df),": .getCountyCaseData"))
   }
+  df
 }
 
 .getDateSummaryData <- function(county_case) {
+  # .log(paste0(is.null(county_case),": .getDateSummaryData"))
   if(! is.null(county_case)) {
+    # .log(paste0("dim(county_case) = ",dim(county_case),": .getDateSummaryData"))
     dplyr::mutate(county_case, date_num=as.numeric(date)) %>%
       dplyr::group_by(date_num) %>%
       dplyr::summarise(date=date[1],
@@ -321,11 +353,17 @@ db.registerCountyGeo <- function(self, observer) {
 }
 
 .getStatsData <- function(date_summary, population, counties, active_days) {
-  if(! (is.null(date_summary) || is.null(population) || is.null(counties) || is.null(active_days))) {
-    population <- population[population$county_fips %in% counties,]
+  if(! (is.null(date_summary) || is.null(population) || is.null(active_days))) {
+    # .log(paste0("colnames(date_summary) = (",paste(colnames(date_summary),collapse=","),"): .getStatsData"))
+    # .log(paste0("dim(date_summary) = (",paste(dim(date_summary),collapse=","),"): .getStatsData"))
+    if(! is.null(counties) && length(counties) > 0) {
+      # .log(paste0("Filtering population for counties (",paste(counties,collapse=","),"): .getStatsData"))
+      population <- population[population$county_fips %in% counties,]
+    }
     # Calculate the total population
     pop <- sum(population$population, na.rm = TRUE)
     # Calculate the trend (slope) of the new cases linear model
+    # .log("Calculating new_case model: .getStatsData")
     nclm <- stats::lm(new_cases ~ date_num, date_summary)
     nctrend <- stats::coef(summary(nclm))[2]
     date_summary <- dplyr::arrange(date_summary, dplyr::desc(date))
@@ -336,7 +374,9 @@ db.registerCountyGeo <- function(self, observer) {
     # confirmed death and cases
     dthrt <- date_summary$confirmed_deaths[1] / date_summary$confirmed_cases[1]
     # Calculate the trend (slope) of the new deaths linear model
+    # .log("Calculating new_death model: .getStatsData")
     ndlm <- stats::lm(new_deaths ~ date_num, date_summary)
+    # .log("Calculating new_death trend: .getStatsData")
     ndtrend <- coef(summary(ndlm))[2]
     # Calculate probability of exposure statistics
     p_infected <- .calculateProbInfection(date_summary, pop, TRUE)

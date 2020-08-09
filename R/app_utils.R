@@ -1,43 +1,40 @@
 
-# getMap <- function(db, progress=NULL) {
-#   .notify(progress, 0, "Building map")
-#   m <- leaflet() %>%
-#     setView(lng = -98.583, lat = 39.833, zoom = 3) %>%
-#     addTiles() %>%
-#     addGeoJSON(db.getCountyGeo(db))
-#   .notify(progress, 0.75, "Rendering map")
-#   m
-# }
 getMap <- function(county_geo) {
+  # The htmlwidgets::onRender was reverse engineered by looking
+  # at the R leaflet GitHub code and the help for htmlwidgets.
+  # It is there to facilitate adding markers to the map from
+  # feature ids in the URL query parameters.
   if(! is.null(county_geo)) {
     leaflet() %>%
       setView(lng = -98.583, lat = 39.833, zoom = 3) %>%
       addTiles() %>%
-      addGeoJSON(county_geo)
+      addGeoJSON(county_geo) %>%
+      htmlwidgets::onRender("function(el, data, map) {
+        Shiny.setInputValue('map_rendered', true);
+      }")
   }
 }
 
 # Manage map markers
-updateCountyMarkers <- function(db, ftrids, sfids, center=FALSE, progress=NULL) {
+updateCountyMarkers <- function(ftrids, sfids, county_geo, center=FALSE, progress=NULL) {
+  if(is.null(ftrids) || length(ftrids) == 0) {
+    ftrids <- sfids
+  }
   lapply(ftrids, function(ftrid) {
-    sfids <<- updateCountyMarker(db, ftrid, sfids, center, progress)
+    sfids <<- updateCountyMarker(ftrid, sfids, county_geo, center, progress)
   })
   sfids
 }
 
-updateCountyMarker <- function(db, ftrid, sfids, center=FALSE, progress=NULL) {
+updateCountyMarker <- function(ftrid, sfids, county_geo, center=FALSE, progress=NULL) {
   mlid <- getCountyMarkerId(ftrid)
   if(ftrid %in% sfids) {
     sfids <- sfids[sfids != ftrid]
-    db.excludeCounties(db, ftrid, progress=progress)
     leafletProxy("map") %>%
       removeMarker(mlid)
   } else {
     sfids <- c(sfids, ftrid)
-    db.includeCounties(db, ftrid, progress=progress)
-    addCountyMarker(ftrid, geo=db.getCountyGeo(db),
-                    covcosumdf=db.getCountySummaryData(db),
-                    center=center)
+    addCountyMarker(ftrid, geo=county_geo, center=center)
   }
   sfids
 }
@@ -46,25 +43,13 @@ getCountyMarkerId <- function(featureId) {
   paste0("marker_",featureId)
 }
 
-addCountyMarker <- function(featureId, geo, covcosumdf, center=FALSE) {
+addCountyMarker <- function(featureId, geo, center=FALSE) {
   mlid <- getCountyMarkerId(featureId)
   sel <- vapply(geo$features, function(f) f$id == featureId, TRUE)
   if(any(sel)) {
     features <- geo$features[sel]
     feature <- features[[1]]
     mpoint <- get_lon_lat_center(feature)
-    # fcovdf <- covcosumdf[covcosumdf$county_fips==featureId,]
-    # if(nrow(fcovdf) == 0) {
-    #   message("ERROR: No county summary found for feature ",featureId)
-    # }
-    # lab <- HTML(paste(
-    #   paste0("<b>County:</b>",fcovdf$county_name),
-    #   paste0("<b>Confirmed:</b>",fcovdf$confirmed_cases),
-    #   paste0("<b>Active:</b>",fcovdf$active_case_est),
-    #   ifelse("active_rank" %in% colnames(fcovdf), paste0("<b>Active Rank:</b>",fcovdf$active_rank), ""),
-    #   paste0("<b>Deaths:</b>",fcovdf$confirmed_deaths),
-    #   sep = "</br>"
-    # ))
     lab <- HTML(paste(
       paste0("<b>County:</b>",feature$properties["county_name"]),
       paste0("<b>Confirmed:</b>",feature$properties["confirmed_cases"]),
@@ -125,59 +110,66 @@ get_lon_lat_center <- function(feature) {
 
 # Plot generation
 
-confirmedCasesPlot <- function(db) {
-  plot_ly(db.getDateSummaryData(db), x = ~date, y = ~confirmed_cases, type = "scatter", mode = "lines", color = I("blue"), hoverinfo = "y") %>%
-    layout(plot_bgcolor = "#888",
-           xaxis = list(title = "Date", tickangle = -45),
-           yaxis = list(title = "Confirmed Cases")
-    ) %>%
-    config(displayModeBar = FALSE)
+confirmedCasesPlot <- function(date_summary) {
+  future({
+    plot_ly(date_summary, x = ~date, y = ~confirmed_cases, type = "scatter", mode = "lines", color = I("blue"), hoverinfo = "y") %>%
+      layout(plot_bgcolor = "#888",
+             xaxis = list(title = "Date", tickangle = -45),
+             yaxis = list(title = "Confirmed Cases")
+      ) %>%
+      config(displayModeBar = FALSE)
+  })
 }
 
-newCasesPlot <- function(db) {
-  dsumdf <- db.getDateSummaryData(db)
-  fit <- stats::lm(new_cases ~ date, data = dsumdf)
-  plot_ly(dsumdf, x = ~date, y = ~new_cases, type = "scatter", mode = "lines", color = I("blue"), hoverinfo = "y") %>%
-    add_lines(x = ~date, y = fitted(fit), color = I("yellow")) %>%
-    layout(plot_bgcolor = "#888", showlegend = FALSE,
-           xaxis = list(title = "Date", tickangle = -45),
-           yaxis = list(title = "New Cases")
-    ) %>%
-    config(displayModeBar = FALSE)
+newCasesPlot <- function(date_summary) {
+  future({
+    fit <- stats::lm(new_cases ~ date, data = date_summary)
+    plot_ly(date_summary, x = ~date, y = ~new_cases, type = "scatter", mode = "lines", color = I("blue"), hoverinfo = "y") %>%
+      add_lines(x = ~date, y = fitted(fit), color = I("yellow")) %>%
+      layout(plot_bgcolor = "#888", showlegend = FALSE,
+             xaxis = list(title = "Date", tickangle = -45),
+             yaxis = list(title = "New Cases")
+      ) %>%
+      config(displayModeBar = FALSE)
+  })
 }
 
-confirmedDeathsPlot <- function(db) {
-  plot_ly(db.getDateSummaryData(db), x = ~date, y = ~confirmed_deaths, type = "scatter", mode = "lines", color = I("blue"), hoverinfo = "y") %>%
-    layout(plot_bgcolor = "#888",
-           xaxis = list(title = "Date", tickangle = -45),
-           yaxis = list(title = "Confirmed Deaths")
-    ) %>%
-    config(displayModeBar = FALSE)
+confirmedDeathsPlot <- function(date_summary) {
+  future({
+    plot_ly(date_summary, x = ~date, y = ~confirmed_deaths, type = "scatter", mode = "lines", color = I("blue"), hoverinfo = "y") %>%
+      layout(plot_bgcolor = "#888",
+             xaxis = list(title = "Date", tickangle = -45),
+             yaxis = list(title = "Confirmed Deaths")
+      ) %>%
+      config(displayModeBar = FALSE)
+  })
 }
 
-newDeathsPlot <- function(db) {
-  dsumdf <- db.getDateSummaryData(db)
-  fit <- stats::lm(new_deaths ~ date, data = dsumdf)
-  plot_ly(dsumdf, x = ~date, y = ~new_deaths, type = "scatter", mode = "lines", color = I("blue"), hoverinfo = "y") %>%
-    add_lines(x = ~date, y = fitted(fit), color = I("yellow")) %>%
-    layout(plot_bgcolor = "#888", showlegend = FALSE,
-           xaxis = list(title = "Date", tickangle = -45),
-           yaxis = list(title = "New Deaths")
-    ) %>%
-    config(displayModeBar = FALSE)
+newDeathsPlot <- function(date_summary) {
+  future({
+    fit <- stats::lm(new_deaths ~ date, data = date_summary)
+    plot_ly(date_summary, x = ~date, y = ~new_deaths, type = "scatter", mode = "lines", color = I("blue"), hoverinfo = "y") %>%
+      add_lines(x = ~date, y = fitted(fit), color = I("yellow")) %>%
+      layout(plot_bgcolor = "#888", showlegend = FALSE,
+             xaxis = list(title = "Date", tickangle = -45),
+             yaxis = list(title = "New Deaths")
+      ) %>%
+      config(displayModeBar = FALSE)
+  })
 }
 
-deathRatePlot <- function(db) {
-  dsumdf <- db.getDateSummaryData(db)
-  dsumdf$death_rate <- 0
-  sel <- dsumdf$confirmed_cases > 0
-  dsumdf$death_rate[sel] <- round(dsumdf$confirmed_deaths[sel] / dsumdf$confirmed_cases[sel], 4)
-  plot_ly(dsumdf, x = ~date, y = ~death_rate, type = "scatter", mode = "lines", color = I("blue"), hoverinfo = "y") %>%
-    layout(plot_bgcolor = "#888",
-           xaxis = list(title = "Date", tickangle = -45),
-           yaxis = list(title = "Death Rate")
-    ) %>%
-    config(displayModeBar = FALSE)
+deathRatePlot <- function(date_summary) {
+  future({
+    date_summary$death_rate <- 0
+    sel <- date_summary$confirmed_cases > 0
+    date_summary$death_rate[sel] <- round(date_summary$confirmed_deaths[sel] / date_summary$confirmed_cases[sel], 4)
+    plot_ly(date_summary, x = ~date, y = ~death_rate, type = "scatter", mode = "lines", color = I("blue"), hoverinfo = "y") %>%
+      layout(plot_bgcolor = "#888",
+             xaxis = list(title = "Date", tickangle = -45),
+             yaxis = list(title = "Death Rate")
+      ) %>%
+      config(displayModeBar = FALSE)
+  })
 }
 
 computeExposureData <- function(statsdf) {
@@ -193,25 +185,27 @@ computeExposureData <- function(statsdf) {
   )
 }
 
-exposureProbPlot <- function(db) {
-  expdfs <- computeExposureData(db.getStatsData(db))
-  pldf <- expdfs[["plot"]]
-  xti <- seq.int(from = 3, to = nrow(pldf), by = 3)
-  xb <- pldf$xlog[xti]
-  xl <- pldf$x[xti]
-  plot_ly(pldf, x = ~xlog, y = ~y, type = "scatter", mode = "lines", color = I("blue"), hoverinfo = "y") %>%
-    add_text(x = ~x, y = ~y, text = ~label, data = expdfs[["label"]], color = I("yellow")) %>%
-    layout(plot_bgcolor = "#888", showlegend = FALSE,
-           xaxis = list(
-             title = "Number of People",
-             tickmode = "array",
-             tickvals = xb,
-             ticktext = xl,
-             tickangle = -45
-           ),
-           yaxis = list(title = "Probability Exposed")
-    ) %>%
-    config(displayModeBar = FALSE)
+exposureProbPlot <- function(stats) {
+  future({
+    expdfs <- computeExposureData(stats)
+    pldf <- expdfs[["plot"]]
+    xti <- seq.int(from = 3, to = nrow(pldf), by = 3)
+    xb <- pldf$xlog[xti]
+    xl <- pldf$x[xti]
+    plot_ly(pldf, x = ~xlog, y = ~y, type = "scatter", mode = "lines", color = I("blue"), hoverinfo = "y") %>%
+      add_text(x = ~x, y = ~y, text = ~label, data = expdfs[["label"]], color = I("yellow")) %>%
+      layout(plot_bgcolor = "#888", showlegend = FALSE,
+             xaxis = list(
+               title = "Number of People",
+               tickmode = "array",
+               tickvals = xb,
+               ticktext = xl,
+               tickangle = -45
+             ),
+             yaxis = list(title = "Probability Exposed")
+      ) %>%
+      config(displayModeBar = FALSE)
+  })
 }
 ##
 
