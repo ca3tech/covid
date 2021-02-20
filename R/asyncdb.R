@@ -204,10 +204,10 @@ db.registerStatsData <- function(self, observer) {
   df <- .getCachedData(cachefile)
   if(is.null(df)) {
     df <- read.csv("https://usafactsstatic.blob.core.windows.net/public/data/covid-19/covid_confirmed_usafacts.csv") %>%
-      tidyr::gather(key="date", value="confirmed_cases", -countyFIPS, -County.Name, -State, -stateFIPS) %>%
-      dplyr::mutate(date=as.Date(date, "X%m.%d.%y")) %>%
+      tidyr::gather(key="date", value="confirmed_cases", -countyFIPS, -County.Name, -State, -StateFIPS) %>%
+      dplyr::mutate(date=as.Date(date, "X%Y.%m.%d")) %>%
       dplyr::mutate(date_num=as.numeric(date)) %>%
-      dplyr::rename(county_fips=countyFIPS, county_name=County.Name, state=State, state_fips=stateFIPS) %>%
+      dplyr::rename(county_fips=countyFIPS, county_name=County.Name, state=State, state_fips=StateFIPS) %>%
       dplyr::filter(county_fips != 0) %>%
       dplyr::arrange(state, county_fips, date_num) %>%
       dplyr::group_by(state, county_fips) %>%
@@ -228,10 +228,10 @@ db.registerStatsData <- function(self, observer) {
   df <- .getCachedData(cachefile)
   if(is.null(df)) {
     df <- read.csv("https://usafactsstatic.blob.core.windows.net/public/data/covid-19/covid_deaths_usafacts.csv") %>%
-      tidyr::gather(key="date", value="confirmed_deaths", -countyFIPS, -County.Name, -State, -stateFIPS) %>%
-      dplyr::mutate(date=as.Date(date, "X%m.%d.%y")) %>%
+      tidyr::gather(key="date", value="confirmed_deaths", -countyFIPS, -County.Name, -State, -StateFIPS) %>%
+      dplyr::mutate(date=as.Date(date, "X%Y.%m.%d")) %>%
       dplyr::mutate(date_num=as.numeric(date)) %>%
-      dplyr::rename(county_fips=countyFIPS, county_name=County.Name, state=State, state_fips=stateFIPS) %>%
+      dplyr::rename(county_fips=countyFIPS, county_name=County.Name, state=State, state_fips=StateFIPS) %>%
       dplyr::filter(county_fips != 0) %>%
       dplyr::arrange(state, county_fips, date_num) %>%
       dplyr::group_by(state, county_fips) %>%
